@@ -5,6 +5,29 @@ import pandas as pd
 
 # 1. Cấu hình trang Web
 st.set_page_config(page_title="Công cụ Phân tích PDF chuyên sâu", layout="wide")
+
+# --- PHẦN MỚI: CSS ĐỂ CHỈNH MÀU BẢNG ---
+st.markdown("""
+    <style>
+    /* Ép nền của bảng thành màu đen và chữ thành màu trắng */
+    .stDataFrame div[data-testid="stTable"] {
+        background-color: #121212 !important;
+    }
+    .stDataFrame table {
+        color: white !important;
+        background-color: #121212 !important;
+    }
+    th {
+        background-color: #333333 !important;
+        color: white !important;
+    }
+    td {
+        background-color: #1E1E1E !important;
+        color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 st.title("📊 Phân tích Mật độ Từ khóa trong PDF")
 
 # 2. Cột bên trái: Khu vực nhập liệu
@@ -23,9 +46,7 @@ with st.sidebar:
         height=100
     )
     
-    # Thêm tùy chọn hiển thị phần trăm
     show_percent = st.checkbox("Hiển thị tỷ lệ phần trăm (%)", value=True)
-    
     btn_process = st.button("Bắt đầu Phân tích", type="primary")
 
 # 3. Hàm xử lý logic đọc PDF
@@ -38,9 +59,8 @@ def count_words_in_pdf(uploaded_file, keywords):
             if extracted:
                 text_content += extracted + " "
         
-        # Đếm tổng số từ (Word Count)
+        # Đếm tổng số từ
         total_words = len(re.findall(r'\b\w+\b', text_content))
-        
         text_content = text_content.lower()
         
         counts = {}
@@ -49,12 +69,10 @@ def count_words_in_pdf(uploaded_file, keywords):
             word = word.strip().lower()
             if not word: continue
             
-            # Regex đếm từ chính xác
             pattern = r'(?<!\w)' + re.escape(word) + r'(?!\w)'
             count = len(re.findall(pattern, text_content))
             counts[word] = count
             
-            # Tính phần trăm (làm tròn 4 chữ số thập phân)
             if total_words > 0:
                 percents[f"{word} (%)"] = round((count / total_words) * 100, 4)
             else:
@@ -86,19 +104,10 @@ if btn_process:
             if error:
                 st.error(f"Lỗi file {pdf_file.name}: {error}")
             else:
-                # Tạo hàng dữ liệu cơ bản
-                row = {
-                    "Tên File": pdf_file.name,
-                    "Tổng số từ": total_count
-                }
-                
-                # Thêm số lần xuất hiện
+                row = {"Tên File": pdf_file.name, "Tổng số từ": total_count}
                 row.update(counts)
-                
-                # Nếu người dùng muốn xem phần trăm, thêm các cột phần trăm
                 if show_percent:
                     row.update(percents)
-                
                 all_results.append(row)
 
         progress_bar.empty()
@@ -110,20 +119,25 @@ if btn_process:
             
             df = pd.DataFrame(all_results)
             
-            # Làm đẹp bảng hiển thị
-            st.dataframe(df.style.highlight_max(axis=0, color='#e6f3ff'), use_container_width=True)
+            # --- PHẦN CHỈNH STYLE CHO DATAFRAME ---
+            # Sử dụng định dạng màu tối để tương phản với chữ trắng
+            styled_df = df.style.set_properties(**{
+                'background-color': '#1E1E1E',
+                'color': 'white',
+                'border-color': '#444444'
+            }).highlight_max(axis=0, color='#004d99') # Highlight xanh đậm cho dễ nhìn trên nền tối
             
-            # Hiển thị thống kê tổng quát
+            st.dataframe(styled_df, use_container_width=True)
+            
             col1, col2, col3 = st.columns(3)
             col1.metric("Tổng số file", len(all_results))
             col2.metric("Tổng số từ", f"{df['Tổng số từ'].sum():,}")
-            col3.info("Mẹo: Bạn có thể nhấn vào tiêu đề cột để sắp xếp!")
+            col3.info("Bảng đã được chuyển sang chế độ màu tối (Dark) để dễ đọc chữ trắng.")
 
-            # Nút tải xuống CSV
-            csv = df.to_csv(index=False).encode('utf-8-sig') # Dùng utf-8-sig để Excel không lỗi font tiếng Việt
+            csv = df.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
                 label="📥 Tải kết quả về máy (CSV)",
                 data=csv,
-                file_name="phat_hien_tu_khoa_pdf.csv",
+                file_name="ket_qua_phan_tich.csv",
                 mime="text/csv",
             )
