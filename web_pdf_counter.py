@@ -2,9 +2,11 @@ import streamlit as st
 from pypdf import PdfReader
 import re
 import pandas as pd
-# 1. Cấu hình trang Web (Dòng này phải để đầu tiên sau import)
+
+# 1. Cấu hình trang Web
 st.set_page_config(page_title="Công cụ Đếm từ PDF", layout="wide")
 st.title("Công cụ Quét & Đếm từ trong file PDF")
+
 # 2. Cột bên trái: Khu vực nhập liệu
 with st.sidebar:
     st.header("Tải file & Cấu hình")
@@ -33,6 +35,10 @@ def count_words_in_pdf(uploaded_file, keywords):
             if extracted:
                 text_content += extracted + " "
         
+        # Đếm tổng số từ có trong file (sử dụng regex để tách từ)
+        # \b\w+\b giúp nhận diện các cụm ký tự liền nhau là một từ
+        total_words = len(re.findall(r'\b\w+\b', text_content))
+        
         text_content = text_content.lower()
         
         counts = {}
@@ -46,9 +52,9 @@ def count_words_in_pdf(uploaded_file, keywords):
             count = len(re.findall(pattern, text_content))
             counts[word] = count
             
-        return counts, None
+        return counts, total_words, None
     except Exception as e:
-        return {}, str(e)
+        return {}, 0, str(e)
 
 # 4. Xử lý chính khi bấm nút
 if btn_process:
@@ -71,12 +77,16 @@ if btn_process:
             status_text.text(f"Đang xử lý: {pdf_file.name}...")
             progress_bar.progress((i + 1) / len(uploaded_files))
             
-            counts, error = count_words_in_pdf(pdf_file, keywords_list)
+            counts, total_count, error = count_words_in_pdf(pdf_file, keywords_list)
             
             if error:
                 st.error(f"Lỗi file {pdf_file.name}: {error}")
             else:
-                row = {"Tên File": pdf_file.name}
+                # Tạo hàng dữ liệu với Tổng số từ đặt ngay sau Tên File
+                row = {
+                    "Tên File": pdf_file.name,
+                    "Tổng số từ": total_count
+                }
                 row.update(counts)
                 all_results.append(row)
 
@@ -89,7 +99,17 @@ if btn_process:
             st.subheader("Kết quả chi tiết")
             
             df = pd.DataFrame(all_results)
+            
+            # Hiển thị bảng dữ liệu
             st.dataframe(df, use_container_width=True)
+            
+            # Thống kê nhanh bằng các cột (Metric)
+            total_files = len(all_results)
+            sum_all_words = df["Tổng số từ"].sum()
+            
+            col1, col2 = st.columns(2)
+            col1.metric("Tổng số file đã quét", total_files)
+            col2.metric("Tổng số từ tất cả các file", f"{sum_all_words:,}")
             
             # Nút tải xuống CSV
             csv = df.to_csv(index=False).encode('utf-8')
